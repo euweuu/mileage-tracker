@@ -7,10 +7,16 @@ import {
   unlinkTelegram,
 } from '../services/supabase';
 
-const ROLE_LABELS = { admin: 'Адміністратор', dispatcher: 'Диспетчер', driver: 'Водій', manager: 'Менеджер' };
-const ROLE_CLASS = { admin: 'admin', dispatcher: 'dispatcher', driver: 'driver', manager: 'manager' };
+/* ─── Constants ─────────────────────────────────────────────────────────── */
 
-// ─── Telegram Section ─────────────────────────────────────────────────────────
+const ROLE_LABELS = {
+  admin: 'Адміністратор',
+  dispatcher: 'Диспетчер',
+  driver: 'Водій',
+  manager: 'Менеджер',
+};
+
+/* ─── Telegram Section ──────────────────────────────────────────────────── */
 
 const TelegramSection = ({ driverId }) => {
   const bot = process.env.REACT_APP_TELEGRAM_BOT_USERNAME || 'trustdriver_bot';
@@ -23,8 +29,7 @@ const TelegramSection = ({ driverId }) => {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setStatus(await getTelegramLinkStatus(driverId)); }
-    catch { /* ignore */ }
+    try { setStatus(await getTelegramLinkStatus(driverId)); } catch { /* ignore */ }
     finally { setLoading(false); }
   }, [driverId]);
 
@@ -57,275 +62,336 @@ const TelegramSection = ({ driverId }) => {
 
   const copy = () => {
     navigator.clipboard.writeText(`https://t.me/${bot}?start=${token}`);
-    setCopied(true); setTimeout(() => setCopied(false), 2000);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  const min = expiresAt ? Math.max(0, Math.round((new Date(expiresAt) - Date.now()) / 60000)) : 30;
+  const minutesLeft = expiresAt
+    ? Math.max(0, Math.round((new Date(expiresAt) - Date.now()) / 60000))
+    : 30;
 
-  if (loading) return <span style={{ color: 'var(--tx-4)', fontSize: '0.8rem' }}>…</span>;
+  if (loading) {
+    return <div className="loading" style={{ padding: '1rem 0' }}>Завантаження...</div>;
+  }
 
-  // ── Linked ──
-  if (status?.linked) return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-      <span style={{
-        display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-        background: 'var(--green-50)', color: 'var(--green-600)',
-        border: '1px solid var(--green-100)',
-        borderRadius: 'var(--r-full)', padding: '0.15rem 0.55rem',
-        fontSize: '0.75rem', fontWeight: 500,
-      }}>
-        ✓&nbsp;{status.telegramName || 'Підключено'}
-      </span>
-      <a href={`https://t.me/${bot}`} target="_blank" rel="noreferrer"
-        style={{ fontSize: '0.8rem', color: '#2AABEE', textDecoration: 'none', fontWeight: 500 }}>
-        Відкрити →
-      </a>
-      <button onClick={unlink} disabled={busy} style={{
-        background: 'none', border: 'none', color: 'var(--tx-3)',
-        fontSize: '0.78rem', cursor: 'pointer', padding: 0,
-        textDecoration: 'underline', textDecorationStyle: 'dashed',
-      }}>
-        {busy ? '…' : 'відключити'}
+  if (status?.linked) {
+    return (
+      <div className="flex items-center justify-between" style={{ padding: '0.5rem 0' }}>
+        <div className="flex items-center gap-2">
+          <span className="badge badge-green">Підключено</span>
+          <span className="text-secondary">{status.telegramName || 'Telegram'}</span>
+        </div>
+        <button onClick={unlink} disabled={busy} className="btn btn-secondary btn-sm">
+          {busy ? '…' : 'Відключити'}
+        </button>
+      </div>
+    );
+  }
+
+  if (token) {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <span className="badge badge-blue">Тимчасове посилання ({minutesLeft} хв)</span>
+          <button onClick={() => setToken(null)} className="btn btn-secondary btn-sm">Скасувати</button>
+        </div>
+        <code style={{
+          display: 'block',
+          fontFamily: 'var(--font-mono)',
+          fontSize: '0.7rem',
+          background: 'var(--surface-sub)',
+          padding: '0.5rem',
+          borderRadius: 'var(--r-md)',
+          marginBottom: '0.5rem',
+          wordBreak: 'break-all',
+        }}>
+          {token}
+        </code>
+        <div className="flex gap-2">
+          <a href={`https://t.me/${bot}?start=${token}`} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm">
+            Відкрити бот
+          </a>
+          <button onClick={copy} className="btn btn-secondary btn-sm">
+            {copied ? 'Скопійовано' : 'Скопіювати'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-between" style={{ padding: '0.5rem 0' }}>
+      <span className="text-tertiary">Telegram не підключено</span>
+      <button onClick={generate} disabled={busy} className="btn btn-secondary btn-sm">
+        {busy ? '…' : 'Підключити'}
       </button>
     </div>
   );
-
-  // ── Token ready ──
-  if (token) return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-        <a
-          href={`https://t.me/${bot}?start=${token}`}
-          target="_blank" rel="noreferrer"
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-            background: '#2AABEE', color: '#fff', textDecoration: 'none',
-            borderRadius: 'var(--r-md)', padding: '0.3rem 0.75rem',
-            fontSize: '0.8rem', fontWeight: 600,
-          }}>
-          ✈ Відкрити бот
-        </a>
-        <button onClick={copy} style={{
-          background: 'var(--surface-sub)', border: '1px solid var(--bd-1)',
-          borderRadius: 'var(--r-sm)', padding: '0.25rem 0.5rem',
-          fontSize: '0.72rem', color: 'var(--tx-2)', cursor: 'pointer',
-        }}>
-          {copied ? '✓ Скопійовано' : '⎘ Посилання'}
-        </button>
-        <button onClick={() => setToken(null)} style={{
-          background: 'none', border: 'none', color: 'var(--tx-3)',
-          fontSize: '0.75rem', cursor: 'pointer', padding: '0.25rem',
-        }}>✕</button>
-      </div>
-      <span style={{ fontSize: '0.72rem', color: min <= 5 ? 'var(--red-500)' : 'var(--tx-4)' }}>
-        Код: <code style={{ fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>{token}</code>
-        &nbsp;· діє {min} хв · натисніть START у боті
-      </span>
-    </div>
-  );
-
-  // ── Not linked ──
-  return (
-    <button onClick={generate} disabled={busy} className="btn btn-secondary btn-sm"
-      style={{ fontSize: '0.8rem' }}>
-      {busy ? '…' : '✈ Підключити'}
-    </button>
-  );
 };
 
-// ─── Profile ──────────────────────────────────────────────────────────────────
-
-const Row = ({ label, children }) => (
-  <div style={{
-    display: 'grid', gridTemplateColumns: '140px 1fr',
-    alignItems: 'center', gap: '0.5rem',
-    padding: '0.55rem 0', borderBottom: '1px solid var(--bd-1)',
-    minHeight: 40,
-  }}>
-    <span style={{ fontSize: '0.78rem', color: 'var(--tx-3)', fontWeight: 500 }}>{label}</span>
-    <span style={{ fontSize: '0.875rem', color: 'var(--tx-1)' }}>{children}</span>
-  </div>
-);
+/* ─── Profile Component ─────────────────────────────────────────────────── */
 
 const Profile = () => {
   const { user, logout, hasPermission } = useAuth();
-  const [tab, setTab] = useState('profile');
-  const [pwd, setPwd] = useState({ n: '', c: '' });
+  const [activeTab, setActiveTab] = useState('profile');
+  const [password, setPassword] = useState({ new: '', confirm: '' });
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState({ text: '', type: '' });
+  const [message, setMessage] = useState({ text: '', type: '' });
 
   useEffect(() => {
-    if (msg.text && msg.type === 'success') {
-      const t = setTimeout(() => setMsg({ text: '', type: '' }), 3000);
-      return () => clearTimeout(t);
+    if (message.text && message.type === 'success') {
+      const timer = setTimeout(() => setMessage({ text: '', type: '' }), 3000);
+      return () => clearTimeout(timer);
     }
-  }, [msg]);
+  }, [message]);
 
-  const savePwd = async (e) => {
+  const handlePasswordChange = async (e) => {
     e.preventDefault();
-    if (!pwd.n || !pwd.c) return setMsg({ text: 'Заповніть всі поля', type: 'error' });
-    if (pwd.n !== pwd.c) return setMsg({ text: 'Паролі не співпадають', type: 'error' });
-    if (pwd.n.length < 6) return setMsg({ text: 'Мінімум 6 символів', type: 'error' });
+    if (!password.new || !password.confirm) {
+      return setMessage({ text: 'Заповніть всі поля', type: 'error' });
+    }
+    if (password.new !== password.confirm) {
+      return setMessage({ text: 'Паролі не співпадають', type: 'error' });
+    }
+    if (password.new.length < 6) {
+      return setMessage({ text: 'Мінімум 6 символів', type: 'error' });
+    }
     setSaving(true);
     try {
-      const r = await changePassword(pwd.n);
-      if (r.success) { setMsg({ text: 'Пароль змінено!', type: 'success' }); setPwd({ n: '', c: '' }); }
-      else setMsg({ text: r.error || 'Помилка', type: 'error' });
-    } catch (e) { setMsg({ text: e.message, type: 'error' }); }
-    finally { setSaving(false); }
+      const result = await changePassword(password.new);
+      if (result.success) {
+        setMessage({ text: 'Пароль успішно змінено', type: 'success' });
+        setPassword({ new: '', confirm: '' });
+      } else {
+        setMessage({ text: result.error || 'Помилка', type: 'error' });
+      }
+    } catch (err) {
+      setMessage({ text: err.message, type: 'error' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!user) return null;
 
   const hasTelegram = !!user.driver_id;
+  const initials = user.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+
+  const getAvatarColor = () => {
+    switch (user.role) {
+      case 'admin': return 'var(--red-500)';
+      case 'dispatcher': return 'var(--blue-500)';
+      case 'driver': return 'var(--green-500)';
+      case 'manager': return 'var(--purple-500)';
+      default: return 'var(--n-500)';
+    }
+  };
 
   return (
-    <div className="container" style={{ maxWidth: 600 }}>
+    <div className="container" style={{ maxWidth: 680, margin: '0 auto' }}>
 
-      {/* ── Avatar card ── */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: '1rem',
-        paddingBottom: '1.25rem', marginBottom: '1.25rem',
-        borderBottom: '1px solid var(--bd-1)',
-      }}>
-        {/* Avatar */}
+      {/* ========== HERO SECTION ========== */}
+      <div style={{ marginBottom: '2rem' }}>
         <div style={{
-          width: 52, height: 52, borderRadius: 'var(--r-xl)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '1.375rem', fontWeight: 700, flexShrink: 0,
-          background: user.role === 'admin' ? 'var(--red-50)'
-            : user.role === 'dispatcher' ? 'var(--blue-50)'
-              : 'var(--green-50)',
-          color: user.role === 'admin' ? 'var(--red-600)'
-            : user.role === 'dispatcher' ? 'var(--blue-600)'
-              : 'var(--green-600)',
-          border: '1px solid var(--bd-1)',
-        }}>
-          {user.name?.charAt(0).toUpperCase()}
-        </div>
+          height: 3,
+          width: 48,
+          background: getAvatarColor(),
+          borderRadius: 'var(--r-full)',
+          marginBottom: '1.5rem',
+        }} />
 
-        {/* Info */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
           <div style={{
-            fontWeight: 600, fontSize: '1rem', color: 'var(--tx-1)',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            marginBottom: '0.15rem',
+            width: 72, height: 72,
+            borderRadius: 'var(--r-xl)',
+            background: `${getAvatarColor()}15`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '1.75rem', fontWeight: 600,
+            color: getAvatarColor(),
           }}>
-            {user.name}
+            {initials}
           </div>
-          <div style={{
-            fontSize: '0.78rem', color: 'var(--tx-3)',
-            fontFamily: 'var(--font-mono)',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            marginBottom: '0.375rem',
-          }}>
-            {user.email}
+
+          <div style={{ flex: 1 }}>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '0.25rem', color: 'var(--tx-1)' }}>
+              {user.name}
+            </h1>
+            <div style={{ fontSize: '0.875rem', color: 'var(--tx-3)', marginBottom: '0.5rem' }}>
+              {user.email}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <span className={`user-role-badge ${user.role}`}>
+                {ROLE_LABELS[user.role] || user.role}
+              </span>
+              {user.active !== undefined && (
+                <span className={user.active ? 'badge badge-green' : 'badge badge-orange'}>
+                  {user.active ? 'Активний' : 'Неактивний'}
+                </span>
+              )}
+            </div>
           </div>
-          <span className={`user-role-badge ${ROLE_CLASS[user.role] || ''}`}>
-            {ROLE_LABELS[user.role] || user.role}
-          </span>
-        </div>
 
-        {/* Logout */}
-        <button className="btn btn-danger btn-sm" onClick={logout} style={{ flexShrink: 0 }}>
-          Вийти
-        </button>
-      </div>
-
-      {/* ── Tabs ── */}
-      <div className="tabs" style={{ marginBottom: '1.25rem' }}>
-        {[
-          { id: 'profile', label: 'Профіль' },
-          { id: 'security', label: 'Безпека' },
-          ...(hasTelegram ? [{ id: 'telegram', label: '✈ Telegram' }] : []),
-        ].map(({ id, label }) => (
-          <button key={id}
-            className={`tab${tab === id ? ' active' : ''}`}
-            onClick={() => setTab(id)}>
-            {label}
+          <button onClick={logout} className="btn btn-danger btn-sm">
+            Вийти
           </button>
-        ))}
+        </div>
       </div>
 
-      {/* ── Profile tab ── */}
-      {tab === 'profile' && (
+      {/* ========== ВКЛАДКИ ========== */}
+      <div className="tabs" style={{ marginBottom: '1.5rem' }}>
+        <button
+          className={`tab ${activeTab === 'profile' ? 'active' : ''}`}
+          onClick={() => setActiveTab('profile')}
+        >
+          Профіль
+        </button>
+        <button
+          className={`tab ${activeTab === 'security' ? 'active' : ''}`}
+          onClick={() => setActiveTab('security')}
+        >
+          Безпека
+        </button>
+        {hasTelegram && (
+          <button
+            className={`tab ${activeTab === 'telegram' ? 'active' : ''}`}
+            onClick={() => setActiveTab('telegram')}
+          >
+            Telegram
+          </button>
+        )}
+      </div>
+
+      {/* ========== ВКЛАДКА: ПРОФІЛЬ ========== */}
+      {activeTab === 'profile' && (
         <div>
-          <Row label="ID">
-            <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--tx-3)', wordBreak: 'break-all' }}>
-              {user.id}
-            </code>
-          </Row>
-          <Row label="Дата реєстрації">
-            {new Date(user.created_at).toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' })}
-          </Row>
-          <Row label="Статус">
-            <span className={`badge ${user.active ? 'badge-green' : 'badge-orange'}`}>
-              {user.active ? 'Активний' : 'Неактивний'}
-            </span>
-          </Row>
-          <Row label="Останній вхід">
-            <span style={{ fontSize: '0.8rem', color: 'var(--tx-2)' }}>
-              {user.last_login ? new Date(user.last_login).toLocaleString('uk-UA') : '—'}
-            </span>
-          </Row>
+          <div style={{ marginBottom: '1.5rem' }}>
+            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '1rem', color: 'var(--tx-2)' }}>
+              Інформація про акаунт
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '1rem' }}>
+                <span style={{ width: 120, fontSize: '0.75rem', color: 'var(--tx-3)' }}>ID користувача</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--tx-2)' }}>{user.id}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '1rem' }}>
+                <span style={{ width: 120, fontSize: '0.75rem', color: 'var(--tx-3)' }}>Дата реєстрації</span>
+                <span style={{ fontSize: '0.875rem', color: 'var(--tx-1)' }}>
+                  {new Date(user.created_at).toLocaleDateString('uk-UA', {
+                    day: 'numeric', month: 'long', year: 'numeric',
+                  })}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '1rem' }}>
+                <span style={{ width: 120, fontSize: '0.75rem', color: 'var(--tx-3)' }}>Останній вхід</span>
+                <span style={{ fontSize: '0.875rem', color: 'var(--tx-1)' }}>
+                  {user.last_login ? new Date(user.last_login).toLocaleString('uk-UA') : '—'}
+                </span>
+              </div>
+            </div>
+          </div>
+
           {hasTelegram && (
-            <Row label="Telegram">
+            <div>
+              <h3 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--tx-2)' }}>
+                Telegram
+              </h3>
               <TelegramSection driverId={user.driver_id} />
-            </Row>
+            </div>
           )}
         </div>
       )}
 
-      {/* ── Security tab ── */}
-      {tab === 'security' && (
+      {/* ========== ВКЛАДКА: БЕЗПЕКА ========== */}
+      {activeTab === 'security' && (
         <div>
-          <form onSubmit={savePwd} style={{ maxWidth: 340 }}>
+          <h3 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '1rem', color: 'var(--tx-2)' }}>
+            Зміна пароля
+          </h3>
+          <form onSubmit={handlePasswordChange}>
             <div className="form-group">
               <label>Новий пароль</label>
-              <input type="password" value={pwd.n} minLength={6}
-                onChange={e => setPwd({ ...pwd, n: e.target.value })}
-                disabled={saving} placeholder="Мінімум 6 символів" />
+              <input
+                type="password"
+                value={password.new}
+                onChange={(e) => setPassword({ ...password, new: e.target.value })}
+                placeholder="Мінімум 6 символів"
+                disabled={saving}
+              />
             </div>
             <div className="form-group">
               <label>Підтвердіть пароль</label>
-              <input type="password" value={pwd.c}
-                onChange={e => setPwd({ ...pwd, c: e.target.value })}
-                disabled={saving} placeholder="Повторіть пароль" />
+              <input
+                type="password"
+                value={password.confirm}
+                onChange={(e) => setPassword({ ...password, confirm: e.target.value })}
+                placeholder="Повторіть пароль"
+                disabled={saving}
+              />
             </div>
-            {msg.text && <div className={`status ${msg.type}`}>{msg.text}</div>}
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {message.text && (
+              <div className={`status ${message.type}`} style={{ marginBottom: '1rem' }}>
+                {message.text}
+              </div>
+            )}
+            <div className="flex gap-3">
               <button type="submit" className="btn btn-primary" disabled={saving}>
-                {saving ? 'Збереження…' : 'Змінити пароль'}
+                {saving ? 'Збереження...' : 'Змінити пароль'}
               </button>
-              <button type="button" className="btn btn-secondary"
-                onClick={() => { setPwd({ n: '', c: '' }); setMsg({ text: '', type: '' }); }}
-                disabled={saving}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => { setPassword({ new: '', confirm: '' }); setMessage({ text: '', type: '' }); }}
+                disabled={saving}
+              >
                 Очистити
               </button>
             </div>
           </form>
 
           {hasPermission('can_manage_users') && (
-            <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--bd-1)' }}>
-              <button className="btn btn-secondary btn-sm"
-                onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'users' }))}>
-                Керування користувачами →
-              </button>
+            <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--bd-1)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <div style={{ fontWeight: 500, color: 'var(--tx-1)', marginBottom: '0.25rem' }}>
+                    Керування користувачами
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--tx-3)' }}>
+                    Додавання, редагування, блокування акаунтів
+                  </div>
+                </div>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'users' }))}
+                >
+                  Перейти →
+                </button>
+              </div>
             </div>
           )}
         </div>
       )}
 
-      {/* ── Telegram tab ── */}
-      {tab === 'telegram' && hasTelegram && (
+      {/* ========== ВКЛАДКА: TELEGRAM ========== */}
+      {activeTab === 'telegram' && hasTelegram && (
         <div>
-          <p style={{ fontSize: '0.8rem', color: 'var(--tx-3)', margin: '0 0 1rem' }}>
-            Підключіть Telegram-бота щоб переглядати поїздки та статистику прямо в месенджері.
-          </p>
+          <h3 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '1rem', color: 'var(--tx-2)' }}>
+            Telegram-бот
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem', marginBottom: '1.5rem' }}>
+            <div style={{ padding: '0.75rem', background: 'var(--surface-sub)', borderRadius: 'var(--r-lg)', textAlign: 'center' }}>
+              <div style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>🔔</div>
+              <div style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--tx-1)' }}>Сповіщення</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--tx-3)' }}>Нові поїздки</div>
+            </div>
+            <div style={{ padding: '0.75rem', background: 'var(--surface-sub)', borderRadius: 'var(--r-lg)', textAlign: 'center' }}>
+              <div style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>📊</div>
+              <div style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--tx-1)' }}>Статистика</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--tx-3)' }}>Доходи та маршрути</div>
+            </div>
+          </div>
           <TelegramSection driverId={user.driver_id} />
         </div>
       )}
-
     </div>
   );
 };

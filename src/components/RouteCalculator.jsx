@@ -25,6 +25,8 @@ const COLORS = [
   '#2563eb', '#16a34a', '#7c3aed', '#ea580c', '#0891b2', '#be123c',
 ];
 
+// Назви, які не можна редагувати
+const PROTECTED_NAMES = ['ПIK ПД', 'ПIK ПК'];
 
 const RouteCalculator = () => {
   const _idRef = useRef(100);
@@ -47,15 +49,16 @@ const RouteCalculator = () => {
     const share = totalSum > 0 ? (sum / totalSum) * 100 : 0;
     const factKmAdjusted = numFactKm > 0 ? numFactKm : 0;
     const correctedKm = factKmAdjusted - (factKmAdjusted * share / 100);
-    const mlLength = factKmAdjusted - correctedKm; // то же самое: factKmAdjusted * share / 100
+    const mlLength = factKmAdjusted - correctedKm;
 
     return {
       ...b,
       sum,
       share,
-      correctedKm,      // E = Факт_км - Факт_км * Доля%
-      mlLength,         // F = Факт_км * Доля%
-      color: COLORS[i % COLORS.length]
+      correctedKm,
+      mlLength,
+      color: COLORS[i % COLORS.length],
+      isProtected: PROTECTED_NAMES.includes(b.name),
     };
   });
 
@@ -68,8 +71,10 @@ const RouteCalculator = () => {
   }, []);
 
   const remove = useCallback((id) => {
+    const item = bases.find(b => b.id === id);
+    if (item && PROTECTED_NAMES.includes(item.name)) return;
     if (bases.length > 1) setBases(p => p.filter(b => b.id !== id));
-  }, [bases.length]);
+  }, [bases]);
 
   const add = () => {
     const letter = String.fromCharCode(1040 + bases.length);
@@ -153,15 +158,21 @@ const RouteCalculator = () => {
                     borderRadius: '50%', background: row.color,
                     marginRight: '0.5rem', verticalAlign: 'middle'
                   }} />
-                  <input
-                    value={row.name}
-                    onChange={e => setName(row.id, e.target.value)}
-                    style={{
-                      border: 'none', background: 'transparent', fontWeight: 600,
-                      fontSize: '0.875rem', width: 'auto', minWidth: '80px',
-                      padding: 0, margin: 0, fontFamily: 'inherit'
-                    }}
-                  />
+                  {row.isProtected ? (
+                    <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                      {row.name}
+                    </span>
+                  ) : (
+                    <input
+                      value={row.name}
+                      onChange={e => setName(row.id, e.target.value)}
+                      style={{
+                        border: 'none', background: 'transparent', fontWeight: 600,
+                        fontSize: '0.875rem', width: 'auto', minWidth: '80px',
+                        padding: 0, margin: 0, fontFamily: 'inherit'
+                      }}
+                    />
+                  )}
                 </td>
                 <td style={td({ fontWeight: 700, color: row.sum > 0 ? row.color : 'var(--tx-1)' })}>
                   <input
@@ -188,16 +199,21 @@ const RouteCalculator = () => {
                 <td style={td({ textAlign: 'center', padding: '0.3rem 0.4rem', borderBottom: '1px solid var(--bd-1)' })}>
                   <button
                     onClick={() => remove(row.id)}
-                    disabled={bases.length <= 1}
-                    title="Видалити маршрут"
+                    disabled={row.isProtected || bases.length <= 1}
+                    title={row.isProtected ? "Не можна видалити базовий маршрут" : "Видалити маршрут"}
                     style={{
-                      background: 'none', border: 'none', cursor: bases.length <= 1 ? 'not-allowed' : 'pointer',
-                      color: bases.length <= 1 ? 'var(--tx-4, #cbd5e1)' : 'var(--red-500, #ef4444)',
+                      background: 'none', border: 'none',
+                      cursor: (row.isProtected || bases.length <= 1) ? 'not-allowed' : 'pointer',
+                      color: (row.isProtected || bases.length <= 1) ? 'var(--tx-4, #cbd5e1)' : 'var(--red-500, #ef4444)',
                       padding: '0.2rem', borderRadius: '4px', display: 'inline-flex',
                       alignItems: 'center', justifyContent: 'center',
                       transition: 'color 0.15s, background 0.15s',
                     }}
-                    onMouseEnter={e => { if (bases.length > 1) e.currentTarget.style.background = 'var(--red-50, #fef2f2)'; }}
+                    onMouseEnter={e => {
+                      if (!row.isProtected && bases.length > 1) {
+                        e.currentTarget.style.background = 'var(--red-50, #fef2f2)';
+                      }
+                    }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
                   >
                     <TrashIcon />
